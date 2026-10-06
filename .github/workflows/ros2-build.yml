@@ -1,0 +1,19 @@
+name: ROS 2 build
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build in the ATLAS dev container
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            bash -c 'source /opt/ros/jazzy/setup.bash && colcon build --event-handlers console_direct+'
