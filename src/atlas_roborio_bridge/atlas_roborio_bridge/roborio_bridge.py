@@ -20,6 +20,16 @@ class RoboRIOBridge(Node):
         self.nt_instance = ntcore.NetworkTableInstance.getDefault()
         self.nt_instance.startClient4('atlas-jetson')
 
+        self.drive_table = self.nt_instance.getTable('SmartDashboard')
+
+        self.drive_forward_pub = (
+            self.drive_table.getDoubleTopic('Jetson/DriveForward').publish()
+        )
+
+        self.drive_turn_pub = (
+            self.drive_table.getDoubleTopic('Jetson/DriveTurn').publish()
+        )
+
         if self.nt_server:
             self.nt_instance.setServer(self.nt_server)
             self.get_logger().info(
@@ -44,6 +54,10 @@ class RoboRIOBridge(Node):
             self.cmd_vel_callback,
             10,
         )
+    def publish_drive_command(self, forward, turn):
+        """Publish drive commands to NetworkTables."""
+        self.drive_forward_pub.set(forward)
+        self.drive_turn_pub.set(turn)
 
     def check_nt_connection(self):
         """Log a message when the connection state changes."""
