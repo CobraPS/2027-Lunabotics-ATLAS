@@ -1,5 +1,7 @@
 """Monitor the NetworkTables connection to the RoboRIO."""
+import math
 
+from geometry_msgs.msg import Twist
 import ntcore
 import rclpy
 from rclpy.node import Node
@@ -34,6 +36,15 @@ class RoboRIOBridge(Node):
             self.check_nt_connection,
         )
 
+        self.linear_x = 0.0
+        self.angular_z = 0.0
+        self.cmd_vel_sub = self.create_subscription(
+            Twist,
+            '/cmd_vel',
+            self.cmd_vel_callback,
+            10,
+        )
+
     def check_nt_connection(self):
         """Log a message when the connection state changes."""
         connected = self.nt_instance.isConnected()
@@ -51,6 +62,24 @@ class RoboRIOBridge(Node):
             self.get_logger().warning(
                 f'Not connected to NetworkTables server: {self.nt_server}'
             )
+
+    def cmd_vel_callback(self, msg):
+        """Store the latest drive command received on /cmd_vel."""
+        linear_x = msg.linear.x
+        angular_z = msg.angular.z
+
+        if not (math.isfinite(linear_x) and math.isfinite(angular_z)):
+            self.get_logger().warning(
+                'Ignoring /cmd_vel message with non-finite values.'
+            )
+            return
+
+        self.linear_x = linear_x
+        self.angular_z = angular_z
+        self.get_logger().info(
+            f'Drive command: linear.x={linear_x:.2f}, '
+            f'angular.z={angular_z:.2f}'
+        )
 
 
 def main(args=None):
