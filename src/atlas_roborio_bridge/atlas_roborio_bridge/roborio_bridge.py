@@ -54,6 +54,7 @@ class RoboRIOBridge(Node):
             self.cmd_vel_callback,
             10,
         )
+
     def publish_drive_command(self, forward, turn):
         """Publish drive commands to NetworkTables."""
         self.drive_forward_pub.set(forward)
@@ -90,6 +91,7 @@ class RoboRIOBridge(Node):
 
         self.linear_x = linear_x
         self.angular_z = angular_z
+        self.publish_drive_command(self.linear_x, self.angular_z)
         self.get_logger().info(
             f'Drive command: linear.x={linear_x:.2f}, '
             f'angular.z={angular_z:.2f}'

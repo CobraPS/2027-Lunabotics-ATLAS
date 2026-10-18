@@ -25,6 +25,7 @@ The bridge currently supports:
 - Monitoring and reporting NetworkTables connection state changes.
 - Publishing forward/reverse and turning drive command values.
 - Remaining operational during NetworkTables disconnections and automatically reconnecting when the server becomes available.
+- Subscribing to ROS 2 `/cmd_vel` messages and forwarding valid drive commands to NetworkTables.
 
 ### NetworkTables Drive Command Interface
 
@@ -74,7 +75,7 @@ The publishing method has also been verified using a local NetworkTables server 
 
 ### Current Limitations
 
-- The ROS 2 `/cmd_vel` subscriber is being implemented separately in Issue #5. Drive values are not yet automatically forwarded from ROS 2 messages.
+- Valid ROS 2 `/cmd_vel` messages are forwarded to NetworkTables, but end-to-end integration with the physical RoboRIO has not yet been verified.
 - The RoboRIO receiver's expected NetworkTables topics and value units remain unverified.
 - Safe handling of stale drive commands is addressed separately in Issue #12.
 - Physical drivetrain integration has not yet been tested.
