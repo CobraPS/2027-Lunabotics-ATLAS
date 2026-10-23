@@ -1,5 +1,7 @@
 # 2027-Lunabotics-ATLAS
+
 ## Development Environment
+
 1. Install Docker.
 2. Install official Microsoft VS Code.
 3. Install the Microsoft Dev Containers extension in VS Code.
@@ -15,22 +17,37 @@ To verify the development environment, open a terminal inside the dev container 
 ros2 --help
 colcon build
 ```
-
 ## ATLAS Bringup
 
-The `atlas_bringup` package provides the standard launch entry point for starting the currently integrated ATLAS ROS 2 components. It currently starts the RoboRIO bridge. Additional sensors and autonomy components will be added to this launch system as they are integrated.
+The `atlas_bringup` package provides the standard launch entry point for starting the currently integrated ATLAS ROS 2 components. It currently starts the RoboRIO bridge. Additional sensors and autonomy components will be added as they are integrated.
 
 Build and source the workspace:
 
 ```bash
 colcon build --symlink-install
 source install/setup.bash
+```
+
+Start all currently integrated ATLAS components:
+
+```bash
+ros2 launch atlas_bringup atlas.launch.py
+```
+
+To configure the NetworkTables server when launching ATLAS:
+
+```bash
+ros2 launch atlas_bringup atlas.launch.py nt_server:=192.0.2.10
+```
+
+`192.0.2.10` is a documentation-only example address, not the confirmed ATLAS RoboRIO address. Replace it after the team confirms the actual network configuration.
 
 ## RoboRIO Bridge
 
 The `atlas_roborio_bridge` ROS 2 package provides a NetworkTables client for communication between the Jetson and RoboRIO.
 
 The bridge currently supports:
+
 - Connecting to a configurable NetworkTables server.
 - Monitoring and reporting NetworkTables connection state changes.
 - Publishing forward/reverse and turning drive command values.
