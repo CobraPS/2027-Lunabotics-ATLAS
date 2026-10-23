@@ -16,6 +16,16 @@ ros2 --help
 colcon build
 ```
 
+## ATLAS Bringup
+
+The `atlas_bringup` package provides the standard launch entry point for starting the currently integrated ATLAS ROS 2 components. It currently starts the RoboRIO bridge. Additional sensors and autonomy components will be added to this launch system as they are integrated.
+
+Build and source the workspace:
+
+```bash
+colcon build --symlink-install
+source install/setup.bash
+
 ## RoboRIO Bridge
 
 The `atlas_roborio_bridge` ROS 2 package provides a NetworkTables client for communication between the Jetson and RoboRIO.
