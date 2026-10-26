@@ -1,0 +1,9 @@
+build:
+  packages-ignore:
+    - unitree_lidar_ros
+    - unitree_lidar_sdk
+
+test:
+  packages-ignore:
+    - unitree_lidar_ros
+    - unitree_lidar_sdk
