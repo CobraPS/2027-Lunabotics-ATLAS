@@ -6,14 +6,28 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Build in the ATLAS dev container
         uses: devcontainers/ci@v0.3
         with:
           push: never
           runCmd: |
-            bash -c 'source /opt/ros/jazzy/setup.bash && colcon build --event-handlers console_direct+'
+            bash -c '
+              set -e
+              source /opt/ros/jazzy/setup.bash
+              colcon build --event-handlers console_direct+
+              colcon test --event-handlers console_direct+
+              colcon test-result --verbose
+            '
