@@ -10,11 +10,15 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>atlas_roborio_bridge</exec_depend>
+  <exec_depend>unitree_lidar_ros2</exec_depend>
+  <exec_depend>rviz2</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_index_python</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-yaml</test_depend>
 
   <export>
     <build_type>ament_python</build_type>
