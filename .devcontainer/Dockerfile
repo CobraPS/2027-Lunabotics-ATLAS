@@ -6,6 +6,7 @@ RUN apt-get update \
         libpcl-dev \
         ros-jazzy-pcl-conversions \
         ros-jazzy-tf2-ros \
+        ros-jazzy-rviz2 \
     && python3 -m pip install --break-system-packages --no-cache-dir pyntcore==2026.2.2 \
     && rm -rf /var/lib/apt/lists/*
 RUN echo 'source /opt/ros/jazzy/setup.bash' >> /home/ubuntu/.bashrc
