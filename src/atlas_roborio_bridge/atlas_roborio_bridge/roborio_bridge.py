@@ -1,5 +1,6 @@
 """Monitor the NetworkTables connection to the RoboRIO."""
 import math
+import time
 
 from geometry_msgs.msg import Twist
 import ntcore
@@ -55,6 +56,22 @@ class RoboRIOBridge(Node):
             10,
         )
 
+        self.declare_parameter('cmd_timeout', 0.5)
+        self.cmd_timeout = self.get_parameter('cmd_timeout').value
+
+        if self.cmd_timeout <= 0.0:
+            self.get_logger().warning(
+                'cmd_timeout must be positive, using 0.5 seconds.'
+            )
+            self.cmd_timeout = 0.5
+
+        self.last_cmd_time = None
+        self.drive_timed_out = False
+        self.timeout_timer = self.create_timer(
+            0.05,
+            self.check_command_timeout,
+        )
+
     def publish_drive_command(self, forward, turn):
         """Publish drive commands to NetworkTables."""
         self.drive_forward_pub.set(forward)
@@ -91,11 +108,38 @@ class RoboRIOBridge(Node):
 
         self.linear_x = linear_x
         self.angular_z = angular_z
+        self.last_cmd_time = time.monotonic()
         self.publish_drive_command(self.linear_x, self.angular_z)
         self.get_logger().info(
             f'Drive command: linear.x={linear_x:.2f}, '
             f'angular.z={angular_z:.2f}'
         )
+
+    def command_is_stale(self, now):
+        """Return True when the last valid command is older than the timeout."""
+        if self.last_cmd_time is None:
+            return False
+
+        return (now - self.last_cmd_time) > self.cmd_timeout
+
+    def check_command_timeout(self):
+        """Set the drive command to zero when /cmd_vel commands stop arriving."""
+        stale = self.command_is_stale(time.monotonic())
+
+        if stale and not self.drive_timed_out:
+            self.drive_timed_out = True
+            self.linear_x = 0.0
+            self.angular_z = 0.0
+            self.publish_drive_command(0.0, 0.0)
+            self.get_logger().warning(
+                f'No valid /cmd_vel command for {self.cmd_timeout:.2f} s. '
+                'Drive command set to zero.'
+            )
+        elif not stale and self.drive_timed_out:
+            self.drive_timed_out = False
+            self.get_logger().info(
+                'Fresh /cmd_vel command received. Drive commands resumed.'
+            )
 
 
 def main(args=None):
