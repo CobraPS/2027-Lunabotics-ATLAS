@@ -1,0 +1,23 @@
+{
+  "name": "ATLAS ROS 2 Jazzy (Linux GUI)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "ubuntu",
+  "updateRemoteUserUID": true,
+  "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "XAUTHORITY": "/tmp/atlas.xauthority",
+    "QT_QPA_PLATFORM": "xcb",
+    "QT_XCB_NO_MITSHM": "1",
+    "LIBGL_ALWAYS_SOFTWARE": "1"
+  },
+  "runArgs": [
+    "--network=${localEnv:ATLAS_DOCKER_NETWORK:bridge}",
+    "--mount",
+    "type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix,readonly",
+    "--mount",
+    "type=bind,source=${localEnv:ATLAS_XAUTHORITY:/dev/null},target=/tmp/atlas.xauthority,readonly"
+  ]
+}

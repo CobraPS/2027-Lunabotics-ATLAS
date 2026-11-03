@@ -1,8 +1,9 @@
 {
-  "name" : "ATLAS ROS 2 Jazzy",
-  "build" : {
-    "dockerfile" : "Dockerfile"
+  "name": "ATLAS ROS 2 Jazzy",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
   },
-  "remoteUser" : "ubuntu",
-  "updateRemoteUserUID" : true
+  "remoteUser": "ubuntu",
+  "updateRemoteUserUID": true
 }

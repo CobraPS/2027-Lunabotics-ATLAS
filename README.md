@@ -3,11 +3,27 @@
 ## Development Environment
 
 1. Install Docker.
-2. Install official Microsoft VS Code.
-3. Install the Microsoft Dev Containers extension in VS Code.
-4. Clone the repository.
-5. Open the repository in VS Code.
-6. Run `Dev Containers: Reopen in Container`.
+2. Install a tool that supports Dev Containers, or the [Dev Container CLI](https://github.com/devcontainers/cli).
+3. Clone the repository and open its root directory.
+4. Create and open a dev container using one of these configurations:
+
+- **Default** (`.devcontainer/devcontainer.json`): general ROS 2 development and CI; no host display required.
+- **Linux GUI** (`.devcontainer/gui/devcontainer.json`): optional RViz2 visualization and physical LiDAR testing on a Linux host with a local Docker Engine.
+
+Both configurations use the existing Dockerfile, which includes RViz2.
+
+Use your tool's supported method to select the configuration path; selection workflows vary between tools. With the Dev Container CLI installed, run these commands from the repository root to use the GUI configuration:
+
+```bash
+devcontainer up --workspace-folder "$PWD" --config .devcontainer/gui/devcontainer.json
+devcontainer exec --workspace-folder "$PWD" --config .devcontainer/gui/devcontainer.json bash
+```
+
+For the default configuration, use `.devcontainer/devcontainer.json` in both commands. Changed settings apply to newly created containers, not existing ones.
+
+The optional Linux GUI devcontainer supports graphical applications such as RViz2 and requires access to the host's X11 or Xwayland display. Run `rviz2` inside the GUI container to verify that a window appears.
+
+For physical LiDAR testing that needs access to the host Ethernet interface, run `export ATLAS_DOCKER_NETWORK=host` before creating the GUI container. Confirm the host interface and LiDAR IP addresses separately. Bridge networking remains the default when this variable is unset.
 
 The repository root is the ROS 2 workspace. ROS packages should be placed inside the `src/` directory.
 
@@ -17,6 +33,7 @@ To verify the development environment, open a terminal inside the dev container 
 ros2 --help
 colcon build
 ```
+
 ## ATLAS Bringup
 
 The `atlas_bringup` package provides the standard launch entry point for starting the currently integrated ATLAS ROS 2 components. It currently starts the RoboRIO bridge. Additional sensors and autonomy components will be added as they are integrated.
@@ -41,6 +58,47 @@ ros2 launch atlas_bringup atlas.launch.py nt_server:=192.0.2.10
 ```
 
 `192.0.2.10` is a documentation-only example address, not the confirmed ATLAS RoboRIO address. Replace it after the team confirms the actual network configuration.
+
+## Unitree L2 LiDAR
+
+The Unitree L2 can launch independently of the RoboRIO bridge using the official `unitree_lidar_ros2` driver. Build and source the workspace as described in ATLAS Bringup before running these commands.
+
+Launch the LiDAR driver without RViz2:
+
+```bash
+ros2 launch atlas_bringup unitree_l2.launch.py
+```
+
+RViz2 is disabled by default (`use_rviz:=false`) for headless operation. To enable visualization, use the Linux GUI environment described above and run:
+
+```bash
+ros2 launch atlas_bringup unitree_l2.launch.py use_rviz:=true
+```
+
+The default addresses are `lidar_ip:=10.0.9.3` for the sensor and `local_ip:=10.0.9.1` for the host. These ATLAS settings are provisional; physical sensor communication has not yet been validated.
+
+Override the addresses as needed:
+
+```bash
+ros2 launch atlas_bringup unitree_l2.launch.py \
+  lidar_ip:=192.0.2.20 local_ip:=192.0.2.10
+```
+
+These override values are documentation-only examples. Replace them with the sensor's configured IP and the host Ethernet interface's IP.
+
+When sensor data is received, the driver publishes these default topics:
+
+| Topic | ROS 2 Message Type |
+|---|---|
+| `/unilidar/cloud` | `sensor_msgs/msg/PointCloud2` |
+| `/unilidar/imu` | `sensor_msgs/msg/Imu` |
+
+Run the `atlas_bringup` automated tests:
+
+```bash
+colcon test --packages-select atlas_bringup
+colcon test-result --verbose
+```
 
 ## RoboRIO Bridge
 
