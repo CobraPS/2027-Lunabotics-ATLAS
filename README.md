@@ -112,6 +112,18 @@ The bridge currently supports:
 - Remaining operational during NetworkTables disconnections and automatically reconnecting when the server becomes available.
 - Subscribing to ROS 2 `/cmd_vel` messages and forwarding valid drive commands to NetworkTables.
 
+### Drive Command Timeout
+
+The bridge sets the drive command to zero when no valid `/cmd_vel` command arrives within `cmd_timeout` seconds (default: `0.5`).
+
+Commands with non-finite values do not refresh the timeout.
+
+To configure a custom timeout, use:
+
+```bash
+ros2 run atlas_roborio_bridge roborio_bridge --ros-args -p cmd_timeout:=1.0
+```
+
 ### NetworkTables Drive Command Interface
 
 The bridge publishes two NetworkTables `double` values under the `SmartDashboard` table:
