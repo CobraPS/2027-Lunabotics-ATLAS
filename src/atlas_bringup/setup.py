@@ -26,8 +26,8 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Priyesh Patel',
-    maintainer_email='priyeshjpatel@pm.me',
+    maintainer='ATLAS Team',
+    maintainer_email='93223640+CobraPS@users.noreply.github.com',
     description='ROS 2 launch and configuration package for starting ATLAS software components.',
     license='Apache-2.0',
     extras_require={
