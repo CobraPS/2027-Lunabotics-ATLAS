@@ -4,7 +4,7 @@
   <name>atlas_roborio_bridge</name>
   <version>0.0.0</version>
   <description>ROS 2 bridge for communication between the ATLAS Jetson and RoboRIO.</description>
-  <maintainer email="priyeshjpatel@pm.me">Priyesh Patel</maintainer>
+  <maintainer email="93223640+CobraPS@users.noreply.github.com">ATLAS Team</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>

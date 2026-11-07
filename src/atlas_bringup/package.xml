@@ -4,7 +4,7 @@
   <name>atlas_bringup</name>
   <version>0.0.0</version>
   <description>ROS 2 launch and configuration package for starting ATLAS software components.</description>
-  <maintainer email="priyeshjpatel@pm.me">Priyesh Patel</maintainer>
+  <maintainer email="93223640+CobraPS@users.noreply.github.com">ATLAS Team</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>launch</exec_depend>
