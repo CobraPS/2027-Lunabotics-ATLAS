@@ -7,9 +7,10 @@ RUN apt-get update \
         ros-jazzy-pcl-conversions \
         ros-jazzy-tf2-ros \
         ros-jazzy-rviz2 \
+        ros-jazzy-teleop-twist-keyboard \
     && python3 -m pip install --break-system-packages --no-cache-dir pyntcore==2026.2.2 \
-    && apt-get install -y --no-install-recommends python3-pip ros-jazzy-teleop-twist-keyboard \
     && rm -rf /var/lib/apt/lists/*
+
 RUN echo 'source /opt/ros/jazzy/setup.bash' >> /home/ubuntu/.bashrc
 
 RUN echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/ubuntu && chmod 0440 /etc/sudoers.d/ubuntu
