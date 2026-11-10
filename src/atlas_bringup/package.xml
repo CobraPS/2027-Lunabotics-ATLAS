@@ -12,7 +12,9 @@
   <exec_depend>atlas_roborio_bridge</exec_depend>
   <exec_depend>unitree_lidar_ros2</exec_depend>
   <exec_depend>rviz2</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
 
+  <test_depend>ament_index_python</test_depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_index_python</test_depend>
