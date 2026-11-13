@@ -1,0 +1,6 @@
+.gradle/
+build/
+*.log
+*.wpilog
+ctre_sim/
+networktables.json*
