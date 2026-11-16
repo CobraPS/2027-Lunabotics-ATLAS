@@ -1,5 +1,12 @@
 # 2027-Lunabotics-ATLAS
 
+## RoboRIO Application
+
+The independent [C++ WPILib 2026 project](roborio/README.md) lives under `roborio/`.
+It includes Phoenix 6 Talon FX control, hardware-free tests, desktop simulation,
+and its own Gradle build and CI workflow. It is excluded from `colcon`; ROS 2
+development continues with the environment below.
+
 ## Development Environment
 
 1. Install Docker.
