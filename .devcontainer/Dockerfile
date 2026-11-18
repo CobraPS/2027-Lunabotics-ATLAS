@@ -35,6 +35,10 @@ RUN apt-get update \
 # after updateRemoteUserUID may have changed the container user's UID.
 RUN install -d -m 0700 -o ubuntu -g ubuntu /run/user/1000
 
+        ros-jazzy-teleop-twist-keyboard \
+    && python3 -m pip install --break-system-packages --no-cache-dir pyntcore==2026.2.2 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN echo 'source /opt/ros/jazzy/setup.bash' >> /home/ubuntu/.bashrc
 
 RUN echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/ubuntu && chmod 0440 /etc/sudoers.d/ubuntu

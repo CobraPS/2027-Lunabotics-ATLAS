@@ -1,6 +1,12 @@
 # 2027-Lunabotics-ATLAS
 
 ROS 2 Jazzy workspace for the SDSU Lunabotics ATLAS rover. This repository provides the navigation simulation, LiDAR driver, RoboRIO bridge, and bringup launch files.
+## RoboRIO Application
+
+The independent [C++ WPILib 2026 project](roborio/README.md) lives under `roborio/`.
+It includes Phoenix 6 Talon FX control, hardware-free tests, desktop simulation,
+and its own Gradle build and CI workflow. It is excluded from `colcon`; ROS 2
+development continues with the environment below.
 
 ## Development Environment
 
@@ -87,6 +93,57 @@ ros2 launch atlas_bringup unitree_l2.launch.py lidar_ip:=192.0.2.20 local_ip:=19
 ## RoboRIO Bridge
 
 The `atlas_roborio_bridge` package provides a NetworkTables client for Jetson↔RoboRIO communication.
+
+## Keyboard Teleoperation
+
+Publishes `geometry_msgs/msg/Twist` commands to `/cmd_vel` using the official `teleop_twist_keyboard` package, which is installed in the dev container. It must be the only `/cmd_vel` publisher, because command arbitration with autonomous navigation is not implemented yet.
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+The initial speeds can be set without changing any code (defaults: `speed` 0.5, `turn` 1.0):
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.3 -p turn:=0.8
+```
+
+Keys: `i` forward, `,` reverse, `j` turn left, `l` turn right, `k` stop (any key without another function also stops). `q`/`z` change both speeds by 10%, `w`/`x` only the linear speed, `e`/`c` only the angular speed. `Ctrl+C` quits after publishing a final zero-velocity command, which does not replace the command timeout and failsafe mechanisms. The published commands can be observed with `ros2 topic echo /cmd_vel`.
+
+### Test through the RoboRIO bridge
+
+Open three terminals in the dev container.
+
+1. Start a local NetworkTables server that prints the drive values (run from `/tmp`, stop with `Ctrl+C`):
+
+```bash
+cd /tmp
+python3 - <<'EOF'
+import time
+
+import ntcore
+
+inst = ntcore.NetworkTableInstance.getDefault()
+inst.startServer()
+forward = inst.getDoubleTopic('/SmartDashboard/Jetson/DriveForward').subscribe(0.0)
+turn = inst.getDoubleTopic('/SmartDashboard/Jetson/DriveTurn').subscribe(0.0)
+last = None
+try:
+    while True:
+        current = (forward.get(), turn.get())
+        if current != last:
+            print(f'DriveForward={current[0]:.2f} DriveTurn={current[1]:.2f}')
+            last = current
+        time.sleep(0.05)
+except KeyboardInterrupt:
+    pass
+EOF
+```
+
+2. Start the bridge: `ros2 run atlas_roborio_bridge roborio_bridge --ros-args -p nt_server:=127.0.0.1 -p cmd_timeout:=1.0`
+3. Start the keyboard teleoperation with the command above.
+
+With the default speeds, pressing `i` prints `DriveForward=0.50 DriveTurn=0.00` and pressing `j` prints `DriveForward=0.00 DriveTurn=1.00`. A key held down is repeated by the keyboard after a short delay, so `cmd_timeout` should be longer than that delay (for example `1.0`).
 
 ### NetworkTables Drive Command Interface
 
