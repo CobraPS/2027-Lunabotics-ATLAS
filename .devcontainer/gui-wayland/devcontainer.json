@@ -1,0 +1,31 @@
+{
+  "name": "ATLAS ROS 2 Jazzy (Linux GUI - Wayland)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "ubuntu",
+  "updateRemoteUserUID": true,
+  "postCreateCommand": "sudo install -d -m 0700 -o \"$(id -u)\" -g \"$(id -g)\" /run/user/1000",
+  "initializeCommand": ["bash", "${localWorkspaceFolder}/.devcontainer/gui/prepare-host-wayland.sh"],
+  "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "XAUTHORITY": "/tmp/atlas-gui/Xauthority",
+    "WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "QT_QPA_PLATFORM": "wayland",
+    "QT_WAYLAND_DISABLE_WINDOWDECORATION": "1",
+    "XDG_SESSION_TYPE": "wayland"
+  },
+  "runArgs": [
+    "--network=${localEnv:ATLAS_DOCKER_NETWORK:bridge}",
+    "--mount",
+    "type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix,readonly",
+    "--mount",
+    "type=bind,source=${localEnv:XDG_RUNTIME_DIR}/atlas-devcontainer-gui-${localEnv:DISPLAY},target=/tmp/atlas-gui,readonly",
+    "--mount",
+    "type=bind,source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/run/user/1000/${localEnv:WAYLAND_DISPLAY},readonly",
+    "--device=/dev/dri:/dev/dri:rw",
+    "--group-add=${localEnv:ATLAS_GPU_GID:video}"
+  ]
+}

@@ -1,23 +1,26 @@
+
 {
-  "name": "ATLAS ROS 2 Jazzy (Linux GUI)",
+  "name": "ATLAS ROS 2 Jazzy (Linux GUI - X11)",
   "build": {
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
   "remoteUser": "ubuntu",
   "updateRemoteUserUID": true,
+  "initializeCommand": ["bash", "${localWorkspaceFolder}/.devcontainer/gui/prepare-host.sh"],
   "containerEnv": {
     "DISPLAY": "${localEnv:DISPLAY}",
-    "XAUTHORITY": "/tmp/atlas.xauthority",
+    "XAUTHORITY": "/tmp/atlas-gui/Xauthority",
     "QT_QPA_PLATFORM": "xcb",
-    "QT_XCB_NO_MITSHM": "1",
-    "LIBGL_ALWAYS_SOFTWARE": "1"
+    "QT_XCB_NO_MITSHM": "1"
   },
   "runArgs": [
     "--network=${localEnv:ATLAS_DOCKER_NETWORK:bridge}",
     "--mount",
     "type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix,readonly",
     "--mount",
-    "type=bind,source=${localEnv:ATLAS_XAUTHORITY:/dev/null},target=/tmp/atlas.xauthority,readonly"
+    "type=bind,source=${localEnv:XDG_RUNTIME_DIR}/atlas-devcontainer-gui-${localEnv:DISPLAY},target=/tmp/atlas-gui,readonly",
+    "--device=/dev/dri:/dev/dri:rw",
+    "--group-add=${localEnv:ATLAS_GPU_GID:video}"
   ]
 }

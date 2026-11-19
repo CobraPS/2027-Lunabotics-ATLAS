@@ -18,8 +18,8 @@ setup(
         'pyntcore==2026.2.2',
     ],
     zip_safe=True,
-    maintainer='Priyesh Patel',
-    maintainer_email='priyeshjpatel@pm.me',
+    maintainer='ATLAS Team',
+    maintainer_email='93223640+CobraPS@users.noreply.github.com',
     description='ROS 2 bridge for communication between the ATLAS Jetson and RoboRIO.',
     license='Apache-2.0',
     extras_require={
