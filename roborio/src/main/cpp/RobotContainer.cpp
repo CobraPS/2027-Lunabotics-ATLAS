@@ -7,7 +7,10 @@
 #include <string>
 #include <utility>
 
-RobotContainer::RobotContainer(std::span<const MotorConfig> configs) {
+RobotContainer::RobotContainer(std::span<const MotorConfig> configs,
+                              DriveCommandWatchdog::Seconds driveCommandTimeout,
+                              DriveCommandWatchdog::Now now)
+    : m_driveWatchdog{driveCommandTimeout, std::move(now)} {
   // Validate the whole collection before constructing any CAN devices.
   std::set<std::pair<std::string, int>> addresses;
   std::set<int> simulationIds;
@@ -30,6 +33,7 @@ RobotContainer::RobotContainer(std::span<const MotorConfig> configs) {
 }
 
 void RobotContainer::StopAll() {
+  m_driveWatchdog.Reset();
   for (const auto& motor : m_motors) {
     motor->Stop();
   }

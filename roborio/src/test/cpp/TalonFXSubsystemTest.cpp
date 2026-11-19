@@ -4,10 +4,13 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 
+#include "DriveCommandWatchdog.h"
 #include "Robot.h"
 #include "subsystems/TalonFXSubsystem.h"
 
@@ -302,6 +305,350 @@ TEST_F(TalonFXSubsystemTest,
   robot.RobotPeriodic();
   EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
   ExpectDeviceOutput(0.0);
+}
+
+// Only Phoenix telemetry waits use wall time. All watchdog deadlines below
+// use this controllable steady-clock time point, including scheduler tests.
+class WatchedOutputTest : public TalonFXSubsystemTest {
+ protected:
+  void StepScheduler() {
+    frc::sim::DriverStationSim::NotifyNewData();
+    frc2::CommandScheduler::GetInstance().Run();
+  }
+
+  // Emulate only acceptance of a complete update, with no receiver or mode
+  // policy. Rejected input never replaces the demand exposed to the command.
+  bool AcceptDemand(std::uint64_t updateId, double demand, bool isValid = true) {
+    if (!watchdog.RecordCommand(updateId, isValid && std::isfinite(demand))) {
+      return false;
+    }
+    acceptedDemand = demand;
+    return true;
+  }
+
+  DriveCommandWatchdog::TimePoint now{10s};
+  RobotContainer container{constants::kMotors, 250ms,
+                           [this] { return now; }};
+  DriveCommandWatchdog& watchdog = container.GetDriveCommandWatchdog();
+  double acceptedDemand = 0.0;
+};
+
+TEST_F(WatchedOutputTest, StartupCannotRequestOutputWithoutAValidCommand) {
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  EXPECT_TRUE(command.HasRequirement(motor.get()));
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(command.IsScheduled());
+  ExpectDeviceOutput(0.0);
+}
+
+TEST_F(WatchedOutputTest, ExactDeadlineStopsOutputAndEndsTheCommand) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 1.0; }, watchdog);
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.4);  // Existing limit.
+  ExpectDeviceInRange(0.015, 0.415);
+  now += 250ms - 1ns;
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.4);
+  now += 1ns;
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(command.IsScheduled());
+  ExpectDeviceOutput(0.0);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_FALSE(watchdog.RecordCommand(1, true));
+    command.Schedule();  // Even an explicit restart cannot bypass the gate.
+    Tick();
+    EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+    EXPECT_FALSE(command.IsScheduled());
+  }
+}
+
+TEST_F(WatchedOutputTest, ExpiredExecutionCannotReissueOutputBeforeCommandEnd) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  // Inspect the Execute/End boundary explicitly: checking only the final
+  // scheduler output would miss a nonzero request immediately cleared by End.
+  command.get()->Initialize();
+  command.get()->Execute();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 250ms;
+  motor->Stop();
+  command.get()->Execute();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_TRUE(command.get()->IsFinished());
+  command.get()->End(false);
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, RecoveryRequiresANewValidUpdateAndCommandScheduling) {
+  ASSERT_TRUE(watchdog.RecordCommand(10, true));
+  auto command = motor->RunWatchedOutput([] { return -0.2; }, watchdog);
+  command.Schedule();
+  Tick();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), -0.2);
+  now += 250ms;
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_FALSE(watchdog.RecordCommand(10, true));
+  EXPECT_FALSE(watchdog.RecordCommand(11, false));
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  ASSERT_TRUE(watchdog.RecordCommand(12, true));
+  Tick();
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), -0.2);
+  command.Cancel();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, NewUpdatesExtendValidityButInvalidUpdatesDoNot) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  command.Schedule();
+  Tick();
+  now += 200ms;
+  ASSERT_TRUE(watchdog.RecordCommand(2, true));
+  now += 200ms;
+  EXPECT_FALSE(watchdog.RecordCommand(3, false));
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 50ms;
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(command.IsScheduled());
+}
+
+TEST_F(WatchedOutputTest, NewAcceptedZeroDemandStopsAnAlreadyScheduledCommand) {
+  ASSERT_TRUE(AcceptDemand(1, 0.2));
+  auto command = motor->RunWatchedOutput(
+      [this] { return acceptedDemand; }, watchdog);
+  command.Schedule();
+  StepScheduler();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+
+  now += 200ms;
+  ASSERT_TRUE(AcceptDemand(2, 0.0));
+  StepScheduler();
+  EXPECT_TRUE(command.IsScheduled());
+  EXPECT_TRUE(watchdog.IsActive());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  now += 249ms;
+  StepScheduler();
+  EXPECT_TRUE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  now += 1ms;
+  StepScheduler();
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, InvalidMotorRequestsStayNeutralAndCannotFeedWatchdog) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput(
+      [] { return std::numeric_limits<double>::quiet_NaN(); }, watchdog);
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  now += 250ms;
+  Tick();
+  EXPECT_FALSE(watchdog.IsActive());
+  EXPECT_FALSE(command.IsScheduled());
+}
+
+TEST_F(WatchedOutputTest, DisableAndStopAllRequireANewUpdateBeforeRestart) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  command.Schedule();
+  Tick();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  SetEnabled(false);
+  container.StopAll();  // The existing Robot disabled/mode-entry stop path.
+  Tick();
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(watchdog.IsActive());
+  SetEnabled(true);
+  EXPECT_FALSE(watchdog.RecordCommand(1, true));
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  ASSERT_TRUE(watchdog.RecordCommand(2, true));
+  command.Schedule();
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+}
+
+TEST_F(WatchedOutputTest, FreshnessCannotOverridePhoenixFaultLockout) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  command.Schedule();
+  Tick();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  TalonFXSubsystemTestPeer::NeutralResult(*motor,
+                                        ctre::phoenix::StatusCode::TxFailed);
+  ASSERT_TRUE(watchdog.RecordCommand(2, true));
+  Tick();
+  EXPECT_TRUE(watchdog.IsActive());
+  EXPECT_FALSE(motor->IsReady());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  SetEnabled(false);
+  container.StopAll();
+  Tick();
+  EXPECT_TRUE(motor->IsReady());
+  EXPECT_FALSE(command.IsScheduled());
+  SetEnabled(true);
+  Tick();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(watchdog.IsActive());
+}
+
+TEST_F(WatchedOutputTest, FreshZeroRequestRemainsNeutral) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.0; }, watchdog);
+  command.Schedule();
+  Tick();
+  EXPECT_TRUE(watchdog.IsActive());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  command.Cancel();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, InterruptionStopsOutputWithoutExtendingFreshness) {
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput([] { return 0.2; }, watchdog);
+  auto replacement = motor->RunOutput(0.0);
+  command.Schedule();
+  Tick();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 200ms;
+  replacement.Schedule();  // Same subsystem requirement interrupts the guard.
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  now += 50ms;
+  Tick();
+  EXPECT_FALSE(watchdog.IsActive());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, ScheduledCommandFollowsChangingDemandsAndLatestDeadline) {
+  ASSERT_TRUE(AcceptDemand(1, 0.2));
+  auto command = motor->RunWatchedOutput(
+      [this] { return acceptedDemand; }, watchdog);
+  command.Schedule();
+  StepScheduler();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+
+  std::uint64_t updateId = 1;
+  for (auto [demand, expected] :
+       {std::pair{-0.15, -0.15}, {-1.0, -0.25}, {1.0, 0.4}, {0.1, 0.1}}) {
+    now += 100ms;
+    ASSERT_TRUE(AcceptDemand(++updateId, demand));
+    StepScheduler();
+    EXPECT_TRUE(command.IsScheduled());
+    EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), expected);
+  }
+  now += 250ms - 1ns;
+  StepScheduler();
+  EXPECT_TRUE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.1);
+  now += 1ns;
+  StepScheduler();
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, RejectedDemandsCannotReplaceOrExtendAcceptedDemand) {
+  ASSERT_TRUE(AcceptDemand(10, 0.2));
+  auto command = motor->RunWatchedOutput(
+      [this] { return acceptedDemand; }, watchdog);
+  command.Schedule();
+  StepScheduler();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 200ms;
+  EXPECT_FALSE(AcceptDemand(10, -0.2));  // Duplicate update.
+  EXPECT_FALSE(AcceptDemand(9, 0.0));    // Older update.
+  EXPECT_FALSE(AcceptDemand(11, std::numeric_limits<double>::quiet_NaN()));
+  EXPECT_FALSE(AcceptDemand(12, -0.2, false));
+  StepScheduler();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 50ms;
+  StepScheduler();
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  EXPECT_FALSE(command.IsScheduled());
+
+  ASSERT_TRUE(AcceptDemand(13, 0.0));  // Recovery must use this new stop demand.
+  StepScheduler();
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  command.Schedule();
+  StepScheduler();
+  EXPECT_TRUE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, InvalidSupplierValuesStopMotionWithoutRefreshingTimer) {
+  double sampledDemand = 0.2;
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  auto command = motor->RunWatchedOutput(
+      [&sampledDemand] { return sampledDemand; }, watchdog);
+  command.Schedule();
+  StepScheduler();
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  std::uint64_t updateId = 1;
+  for (double invalid : {std::numeric_limits<double>::quiet_NaN(),
+                         std::numeric_limits<double>::infinity(),
+                         -std::numeric_limits<double>::infinity()}) {
+    now += 60ms;
+    sampledDemand = invalid;  // Defensive motor validation still applies.
+    EXPECT_FALSE(watchdog.RecordCommand(++updateId, false));
+    StepScheduler();
+    EXPECT_TRUE(command.IsScheduled());
+    EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+  }
+  now += 70ms;
+  StepScheduler();
+  EXPECT_FALSE(watchdog.IsActive());
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, InactiveOrExpiredWatchdogDoesNotSampleDemand) {
+  int samples = 0;
+  auto command = motor->RunWatchedOutput(
+      [&samples] {
+        ++samples;
+        return 0.2;
+      },
+      watchdog);
+  command.Schedule();
+  StepScheduler();
+  EXPECT_EQ(samples, 0);
+  EXPECT_FALSE(command.IsScheduled());
+  ASSERT_TRUE(watchdog.RecordCommand(1, true));
+  command.Schedule();
+  StepScheduler();
+  ASSERT_EQ(samples, 1);
+  ASSERT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.2);
+  now += 250ms;
+  StepScheduler();
+  EXPECT_EQ(samples, 1);
+  EXPECT_FALSE(command.IsScheduled());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
+}
+
+TEST_F(WatchedOutputTest, EmptyDemandSupplierIsRejected) {
+  EXPECT_THROW(motor->RunWatchedOutput({}, watchdog), std::invalid_argument);
+  EXPECT_FALSE(watchdog.IsActive());
+  EXPECT_DOUBLE_EQ(motor->GetRequestedOutput(), 0.0);
 }
 
 TEST(MotorConfigTest, RejectsInvalidAddressesAndLimits) {
