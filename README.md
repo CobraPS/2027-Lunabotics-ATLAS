@@ -66,7 +66,7 @@ ros2 launch atlas_bringup atlas.launch.py nt_server:=192.0.2.10
 
 `192.0.2.10` is a documentation-only example address, not the confirmed ATLAS RoboRIO address. Replace it after the team confirms the actual network configuration.
 
-## Unitree L2 LiDAR
+## 2x Unitree L2 LiDAR
 
 The Unitree L2 can launch independently of the RoboRIO bridge using the official `unitree_lidar_ros2` driver. Build and source the workspace as described in ATLAS Bringup before running these commands.
 
