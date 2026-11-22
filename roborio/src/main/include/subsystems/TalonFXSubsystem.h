@@ -4,7 +4,10 @@
 #include <frc2/command/SubsystemBase.h>
 
 #include <ctre/phoenix6/TalonFX.hpp>
+#include <functional>
 #include <string>
+
+class DriveCommandWatchdog;
 
 // Duty-cycle bounds must include zero and lie within [-1, 1]. The default
 // limits prohibit motion; the caller must explicitly choose usable limits.
@@ -34,6 +37,15 @@ class TalonFXSubsystem : public frc2::SubsystemBase {
 
   // Stops on command cancellation, interruption, or normal end.
   frc2::CommandPtr RunOutput(double dutyCycle);
+
+  // Samples the latest accepted duty-cycle demand every execution while the
+  // watchdog is active. The caller updates that demand and records freshness
+  // together on the robot thread. The supplier must be nonblocking and must
+  // not refresh the watchdog. An empty supplier throws std::invalid_argument.
+  // Finishes on expiration and uses the existing output/neutral policy.
+  // The watchdog and any state referenced by the supplier must outlive it.
+  frc2::CommandPtr RunWatchedOutput(std::function<double()> dutyCycleSupplier,
+                                  DriveCommandWatchdog& watchdog);
 
   double GetRequestedOutput() const { return m_requestedOutput; }
   // Configuration must succeed; control faults recover only after a successful

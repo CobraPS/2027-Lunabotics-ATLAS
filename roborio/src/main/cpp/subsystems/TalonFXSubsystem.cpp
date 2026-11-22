@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "DriveCommandWatchdog.h"
+
 MotorConfig TalonFXSubsystem::ValidateConfig(MotorConfig config) {
   if (config.canId < 0 || config.canId > 62 || config.canBus.empty()) {
     throw std::invalid_argument("Motor CAN ID must be 0..62 and bus nonempty");
@@ -111,6 +113,25 @@ void TalonFXSubsystem::SimulationPeriodic() {
 frc2::CommandPtr TalonFXSubsystem::RunOutput(double dutyCycle) {
   return RunEnd([this, dutyCycle] { SetOutput(dutyCycle); },
                 [this] { Stop(); });
+}
+
+frc2::CommandPtr TalonFXSubsystem::RunWatchedOutput(
+    std::function<double()> dutyCycleSupplier, DriveCommandWatchdog& watchdog) {
+  if (!dutyCycleSupplier) {
+    throw std::invalid_argument("Watched output requires a duty-cycle supplier");
+  }
+  return RunEnd(
+             [this, dutyCycleSupplier = std::move(dutyCycleSupplier), &watchdog] {
+               // Check before SetOutput: an Until predicate alone is evaluated
+               // after Execute and could briefly reissue an expired request.
+               if (watchdog.IsActive()) {
+                 SetOutput(dutyCycleSupplier());
+               } else {
+                 Stop();
+               }
+             },
+             [this] { Stop(); })
+      .Until([&watchdog] { return !watchdog.IsActive(); });
 }
 
 double TalonFXSubsystem::GetMeasuredOutput() {
