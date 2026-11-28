@@ -2,7 +2,10 @@
 
 #include <frc2/command/CommandScheduler.h>
 
-void Robot::RobotPeriodic() { frc2::CommandScheduler::GetInstance().Run(); }
+void Robot::RobotPeriodic() {
+  m_container.Periodic();
+  frc2::CommandScheduler::GetInstance().Run();
+}
 
 void Robot::DisabledInit() {
   frc2::CommandScheduler::GetInstance().CancelAll();

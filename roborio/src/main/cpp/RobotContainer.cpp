@@ -1,5 +1,5 @@
 #include "RobotContainer.h"
-
+#include <frc/smartdashboard/SmartDashboard.h>
 #include <frc/RobotBase.h>
 
 #include <set>
@@ -33,4 +33,13 @@ void RobotContainer::StopAll() {
   for (const auto& motor : m_motors) {
     motor->Stop();
   }
+}
+
+void RobotContainer::Periodic() {
+  m_driveCommand = m_driveReceiver.Read();
+  // Publish what the RoboRIO received so it can be checked in a dashboard.
+  frc::SmartDashboard::PutNumber("Received/DriveForward",
+                                 m_driveCommand.forward);
+  frc::SmartDashboard::PutNumber("Received/DriveTurn", m_driveCommand.turn);
+  frc::SmartDashboard::PutBoolean("Received/DriveValid", m_driveCommand.valid);
 }

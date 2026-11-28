@@ -103,10 +103,25 @@ or a complete hardware safety design. Phoenix factory defaults (including
 inversion and neutral behavior) need review alongside current limits, wiring,
 and mechanical constraints before physical use. The project assumes no final
 motor count, gearing, inversion assignments, or CAN wiring. It implements no
-NetworkTables command reception (#11), drivetrain mixing, closed-loop tuning,
-or independent drive-command watchdog. While enabled, an accepted direct
-request persists until replaced/stopped; command freshness belongs to the
-separate receiver/watchdog work.
+drivetrain mixing, closed-loop tuning, or independent drive-command watchdog.
+While enabled, an accepted direct request persists until replaced/stopped;
+command freshness belongs to the separate watchdog work.
+
+## Drive command reception
+
+`DriveCommandReceiver` reads the drive command that the ROS 2 bridge publishes
+to NetworkTables: `/SmartDashboard/Jetson/DriveForward` (`linear.x`) and
+`/SmartDashboard/Jetson/DriveTurn` (`angular.z`). The values are raw: they are
+forwarded from `/cmd_vel` without scaling, so their units and limits are still
+to be agreed with the ROS 2 side. `RobotContainer::Periodic()` reads them every
+cycle, keeps the latest `DriveCommand`, and republishes it under
+`/SmartDashboard/Received/` (`DriveForward`, `DriveTurn`, `DriveValid`) so it
+can be checked in a dashboard.
+
+If either entry has never been published, or a value is NaN or infinity,
+`valid` is `false` and both values are zero. No motor is driven by these values
+yet, and the age of a command is not checked: stopping when commands stop
+arriving belongs to the separate watchdog work.
 
 ## Testing
 
